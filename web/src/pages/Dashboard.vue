@@ -63,11 +63,33 @@
               </div>
               <div class="tasks-list">
                 <div v-for="t in tasksBy('todo')" :key="t.id" :class="['task-card', 'todo', t.priority]">
-                  <div class="task-content">
-                    <h3>{{ t.title }}</h3>
-                    <p>Priority: {{ t.priority }}</p>
-                  </div>
-                  <button @click="deleteTask(t.id)" class="btn-delete">×</button>
+                  <template v-if="editingTask && editingTask.id === t.id">
+                    <div class="edit-task-form">
+                      <input v-model="editingTask.title" class="form-input" />
+                      <select v-model="editingTask.status" class="form-select">
+                        <option value="todo">To Do</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="done">Done</option>
+                      </select>
+                      <select v-model="editingTask.priority" class="form-select">
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                      </select>
+                      <button @click="saveTaskEdit" class="btn btn-primary">Save</button>
+                      <button @click="cancelTaskEdit" class="btn btn-outline">Cancel</button>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <div class="task-content">
+                      <h3>{{ t.title }}</h3>
+                      <p>Priority: {{ t.priority }}</p>
+                    </div>
+                    <div class="task-actions">
+                      <button @click="editTask(t)" class="btn-edit">✏️</button>
+                      <button @click="deleteTask(t.id)" class="btn-delete">×</button>
+                    </div>
+                  </template>
                 </div>
                 <div v-if="!tasksBy('todo').length" class="empty-column">No tasks</div>
               </div>
@@ -80,11 +102,33 @@
               </div>
               <div class="tasks-list">
                 <div v-for="t in tasksBy('in_progress')" :key="t.id" :class="['task-card', 'in-progress', t.priority]">
-                  <div class="task-content">
-                    <h3>{{ t.title }}</h3>
-                    <p>Priority: {{ t.priority }}</p>
-                  </div>
-                  <button @click="deleteTask(t.id)" class="btn-delete">×</button>
+                  <template v-if="editingTask && editingTask.id === t.id">
+                    <div class="edit-task-form">
+                      <input v-model="editingTask.title" class="form-input" />
+                      <select v-model="editingTask.status" class="form-select">
+                        <option value="todo">To Do</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="done">Done</option>
+                      </select>
+                      <select v-model="editingTask.priority" class="form-select">
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                      </select>
+                      <button @click="saveTaskEdit" class="btn btn-primary">Save</button>
+                      <button @click="cancelTaskEdit" class="btn btn-outline">Cancel</button>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <div class="task-content">
+                      <h3>{{ t.title }}</h3>
+                      <p>Priority: {{ t.priority }}</p>
+                    </div>
+                    <div class="task-actions">
+                      <button @click="editTask(t)" class="btn-edit">✏️</button>
+                      <button @click="deleteTask(t.id)" class="btn-delete">×</button>
+                    </div>
+                  </template>
                 </div>
                 <div v-if="!tasksBy('in_progress').length" class="empty-column">No tasks</div>
               </div>
@@ -97,11 +141,33 @@
               </div>
               <div class="tasks-list">
                 <div v-for="t in tasksBy('done')" :key="t.id" :class="['task-card', 'done', t.priority]">
-                  <div class="task-content">
-                    <h3>{{ t.title }}</h3>
-                    <p>Priority: {{ t.priority }}</p>
-                  </div>
-                  <button @click="deleteTask(t.id)" class="btn-delete">×</button>
+                  <template v-if="editingTask && editingTask.id === t.id">
+                    <div class="edit-task-form">
+                      <input v-model="editingTask.title" class="form-input" />
+                      <select v-model="editingTask.status" class="form-select">
+                        <option value="todo">To Do</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="done">Done</option>
+                      </select>
+                      <select v-model="editingTask.priority" class="form-select">
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                      </select>
+                      <button @click="saveTaskEdit" class="btn btn-primary">Save</button>
+                      <button @click="cancelTaskEdit" class="btn btn-outline">Cancel</button>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <div class="task-content">
+                      <h3>{{ t.title }}</h3>
+                      <p>Priority: {{ t.priority }}</p>
+                    </div>
+                    <div class="task-actions">
+                      <button @click="editTask(t)" class="btn-edit">✏️</button>
+                      <button @click="deleteTask(t.id)" class="btn-delete">×</button>
+                    </div>
+                  </template>
                 </div>
                 <div v-if="!tasksBy('done').length" class="empty-column">No tasks</div>
               </div>
@@ -132,6 +198,31 @@ const projectName = ref('')
 const taskTitle = ref('')
 const taskStatus = ref('todo')
 const taskPriority = ref('medium')
+
+const editingTask = ref(null)
+
+const editTask = (task) => {
+  editingTask.value = { ...task };
+};
+
+const cancelTaskEdit = () => {
+  editingTask.value = null;
+};
+
+const saveTaskEdit = async () => {
+  if (editingTask.value) {
+    try {
+      await api.patch(`/tasks/${editingTask.value.id}`, editingTask.value)
+      const index = tasks.value.findIndex(t => t.id === editingTask.value.id)
+      if (index !== -1) {
+        tasks.value[index] = { ...editingTask.value }
+      }
+      editingTask.value = null
+    } catch (error) {
+      console.error('Error updating task:', error)
+    }
+  }
+}
 
 function setAuth() {
   if (!token.value) return
@@ -188,8 +279,12 @@ async function openProject(p) {
 async function createTask() {
   if (!activeProject.value || !taskTitle.value) return
   try {
-    const { data } = await api.post(`/projects/${activeProject.value.id}/tasks`, { title: taskTitle.value, status: taskStatus.value, priority: taskPriority.value })
-    tasks.value.push(data)
+    await api.post(`/projects/${activeProject.value.id}/tasks`, {
+      title: taskTitle.value,
+      status: taskStatus.value,
+      priority: taskPriority.value
+    })
+    // rely on socket event to append task to list
     taskTitle.value = ''
     taskStatus.value = 'todo'
     taskPriority.value = 'medium'
@@ -236,7 +331,9 @@ onMounted(() => {
   }
 
   socket.on('task:created', t => {
-    if (activeProject.value && t.projectId === activeProject.value.id) tasks.value.push(t)
+    if (!(activeProject.value && t.projectId === activeProject.value.id)) return
+    const exists = tasks.value.some(task => task.id === t.id)
+    if (!exists) tasks.value.push(t)
   })
   socket.on('task:updated', t => {
     if (!activeProject.value || t.projectId !== activeProject.value.id) return
@@ -583,6 +680,109 @@ onMounted(() => {
   text-align: center;
   padding: 1.5rem;
   font-size: 0.9rem;
+}
+
+.edit-task-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.edit-task-form .form-input,
+.edit-task-form .form-select {
+  padding: 0.5rem;
+  border: 2px solid #475569;
+  border-radius: 4px;
+  width: 100%;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+@media (max-width: 768px) {
+  .dashboard-header {
+    flex-direction: column;
+    gap: 1rem;
+    text-align: center;
+  }
+
+  .header-right {
+    width: 100%;
+    justify-content: center;
+    flex-direction: column;
+  }
+
+  .projects-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tasks-board {
+    grid-template-columns: 1fr;
+  }
+
+  .create-project,
+  .create-task {
+    flex-direction: column;
+  }
+}
+.task-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-edit {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: background-color 0.2s;
+  padding: 0;
+  box-shadow: 0 2px 6px rgba(59, 130, 246, 0.3);
+}
+
+.btn-edit:hover {
+  background: #2563eb;
+  transform: scale(1.1);
+  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.4);
+}
+
+.empty-column {
+  color: #64748b;
+  text-align: center;
+  padding: 1.5rem;
+  font-size: 0.9rem;
+}
+
+.form-input,
+.form-select {
+  padding: 0.5rem;
+  border: 2px solid #475569;
+  border-radius: 4px;
+  width: 100%;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.edit-task-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.edit-task-form .form-input,
+.edit-task-form .form-select {
+  padding: 0.5rem;
+  border: 2px solid #475569;
+  border-radius: 4px;
+  width: 100%;
+  background: #0f172a;
+  color: #e2e8f0;
 }
 
 @media (max-width: 768px) {
