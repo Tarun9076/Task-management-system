@@ -1,48 +1,6 @@
 <template>
   <div class="app-container">
-    <div v-if="!token" class="auth-container">
-      <div class="auth-card">
-        <div class="auth-header">
-          <h1>📋 Task Manager</h1>
-          <p>Organize your work, boost your productivity</p>
-        </div>
-
-        <div class="auth-form">
-          <div class="form-group">
-            <label>Email Address</label>
-            <input v-model="email" placeholder="your@email.com" type="email" class="form-input" />
-          </div>
-          <div class="form-group">
-            <label>Password</label>
-            <input v-model="password" placeholder="Enter password" type="password" class="form-input" />
-          </div>
-          <button @click="login" class="btn btn-primary btn-full">Sign In</button>
-          <button @click="showRegister = !showRegister" class="btn btn-secondary btn-full">
-            {{ showRegister ? 'Back to Login' : 'Create New Account' }}
-          </button>
-
-          <div v-if="showRegister" class="register-form">
-            <div class="form-group">
-              <label>Full Name</label>
-              <input v-model="regName" placeholder="Your name" class="form-input" />
-            </div>
-            <div class="form-group">
-              <label>Email Address</label>
-              <input v-model="regEmail" placeholder="your@email.com" type="email" class="form-input" />
-            </div>
-            <div class="form-group">
-              <label>Password</label>
-              <input v-model="regPassword" placeholder="Create password" type="password" class="form-input" />
-            </div>
-            <button @click="register" class="btn btn-success btn-full">Create Account</button>
-          </div>
-
-          <div v-if="error" class="error-message">⚠️ {{ error }}</div>
-        </div>
-      </div>
-    </div>
-
-    <div v-else class="dashboard-container">
+    <div class="dashboard-container">
       <header class="dashboard-header">
         <div class="header-left">
           <h1>📋 Task Manager</h1>
@@ -85,9 +43,14 @@
           <div class="create-task">
             <input v-model="taskTitle" placeholder="New task..." class="form-input" />
             <select v-model="taskStatus" class="form-select">
-              <option value="todo">📋 Todo</option>
-              <option value="in_progress">🔄 In Progress</option>
-              <option value="done">✅ Done</option>
+              <option value="todo">To Do</option>
+              <option value="in_progress">In Progress</option>
+              <option value="done">Done</option>
+            </select>
+            <select v-model="taskPriority" class="form-select">
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
             </select>
             <button @click="createTask" class="btn btn-primary">+ Add Task</button>
           </div>
@@ -99,9 +62,10 @@
                 <span class="count">{{ tasksBy('todo').length }}</span>
               </div>
               <div class="tasks-list">
-                <div v-for="t in tasksBy('todo')" :key="t.id" class="task-card todo">
+                <div v-for="t in tasksBy('todo')" :key="t.id" :class="['task-card', 'todo', t.priority]">
                   <div class="task-content">
-                    <p>{{ t.title }}</p>
+                    <h3>{{ t.title }}</h3>
+                    <p>Priority: {{ t.priority }}</p>
                   </div>
                   <button @click="deleteTask(t.id)" class="btn-delete">×</button>
                 </div>
@@ -115,9 +79,10 @@
                 <span class="count">{{ tasksBy('in_progress').length }}</span>
               </div>
               <div class="tasks-list">
-                <div v-for="t in tasksBy('in_progress')" :key="t.id" class="task-card in-progress">
+                <div v-for="t in tasksBy('in_progress')" :key="t.id" :class="['task-card', 'in-progress', t.priority]">
                   <div class="task-content">
-                    <p>{{ t.title }}</p>
+                    <h3>{{ t.title }}</h3>
+                    <p>Priority: {{ t.priority }}</p>
                   </div>
                   <button @click="deleteTask(t.id)" class="btn-delete">×</button>
                 </div>
@@ -131,9 +96,10 @@
                 <span class="count">{{ tasksBy('done').length }}</span>
               </div>
               <div class="tasks-list">
-                <div v-for="t in tasksBy('done')" :key="t.id" class="task-card done">
+                <div v-for="t in tasksBy('done')" :key="t.id" :class="['task-card', 'done', t.priority]">
                   <div class="task-content">
-                    <p>{{ t.title }}</p>
+                    <h3>{{ t.title }}</h3>
+                    <p>Priority: {{ t.priority }}</p>
                   </div>
                   <button @click="deleteTask(t.id)" class="btn-delete">×</button>
                 </div>
@@ -151,15 +117,12 @@
 import { ref, onMounted, computed } from 'vue'
 import api from '../api'
 import { socket } from '../socket'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const token = ref('')
-const email = ref('')
-const password = ref('')
-const regName = ref('')
-const regEmail = ref('')
-const regPassword = ref('')
-const showRegister = ref(false)
-const error = ref('')
+const userEmail = ref('')
 
 const projects = ref([])
 const activeProject = ref(null)
@@ -168,8 +131,7 @@ const tasks = ref([])
 const projectName = ref('')
 const taskTitle = ref('')
 const taskStatus = ref('todo')
-
-const userEmail = computed(() => email.value)
+const taskPriority = ref('medium')
 
 function setAuth() {
   if (!token.value) return
@@ -177,43 +139,15 @@ function setAuth() {
   localStorage.setItem('token', token.value)
 }
 
-async function login() {
-  try {
-    error.value = ''
-    const { data } = await api.post('/auth/login', { email: email.value, password: password.value })
-    token.value = data.token
-    setAuth()
-    loadProjects()
-  } catch (e) {
-    error.value = e.response?.data?.error || 'Login failed'
-  }
-}
-
-async function register() {
-  try {
-    error.value = ''
-    const { data } = await api.post('/auth/register', { name: regName.value, email: regEmail.value, password: regPassword.value })
-    token.value = data.token
-    email.value = regEmail.value
-    regName.value = ''
-    regEmail.value = ''
-    regPassword.value = ''
-    showRegister.value = false
-    setAuth()
-    loadProjects()
-  } catch (e) {
-    error.value = e.response?.data?.error || 'Registration failed'
-  }
-}
-
 function logout() {
   token.value = ''
-  email.value = ''
+  userEmail.value = ''
   localStorage.removeItem('token')
   delete api.defaults.headers.common['Authorization']
   projects.value = []
   activeProject.value = null
   tasks.value = []
+  router.push('/')
 }
 
 async function loadProjects() {
@@ -221,7 +155,11 @@ async function loadProjects() {
     const { data } = await api.get('/projects')
     projects.value = data
   } catch (e) {
-    error.value = 'Failed to load projects'
+    console.error('Failed to load projects', e)
+    // Handle error, e.g., redirect to login if token is invalid
+    if (e.response && e.response.status === 401) {
+      logout()
+    }
   }
 }
 
@@ -231,9 +169,8 @@ async function createProject() {
     const { data } = await api.post('/projects', { name: projectName.value })
     projects.value.push(data)
     projectName.value = ''
-    error.value = ''
   } catch (e) {
-    error.value = 'Failed to create project'
+    console.error('Failed to create project', e)
   }
 }
 
@@ -243,21 +180,21 @@ async function openProject(p) {
     socket.emit('join:project', p.id)
     const { data } = await api.get(`/projects/${p.id}/tasks`)
     tasks.value = data
-    error.value = ''
   } catch (e) {
-    error.value = 'Failed to load tasks'
+    console.error('Failed to load tasks', e)
   }
 }
 
 async function createTask() {
+  if (!activeProject.value || !taskTitle.value) return
   try {
-    if (!activeProject.value || !taskTitle.value) return
-    const { data } = await api.post(`/projects/${activeProject.value.id}/tasks`, { title: taskTitle.value, status: taskStatus.value })
+    const { data } = await api.post(`/projects/${activeProject.value.id}/tasks`, { title: taskTitle.value, status: taskStatus.value, priority: taskPriority.value })
     tasks.value.push(data)
     taskTitle.value = ''
-    error.value = ''
+    taskStatus.value = 'todo'
+    taskPriority.value = 'medium'
   } catch (e) {
-    error.value = 'Failed to create task'
+    console.error('Failed to create task', e)
   }
 }
 
@@ -265,9 +202,8 @@ async function deleteTask(taskId) {
   try {
     await api.delete(`/tasks/${taskId}`)
     tasks.value = tasks.value.filter(t => t.id !== taskId)
-    error.value = ''
   } catch (e) {
-    error.value = 'Failed to delete task'
+    console.error('Failed to delete task', e)
   }
 }
 
@@ -284,8 +220,21 @@ onMounted(() => {
   if (savedToken) {
     token.value = savedToken
     setAuth()
+    // Decode token to get user email (assuming JWT for now)
+    try {
+      const base64Url = savedToken.split('.')[1]
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+      }).join(''))
+      userEmail.value = JSON.parse(jsonPayload).email
+    } catch (e) {
+      console.error("Failed to decode token", e)
+      logout()
+    }
     loadProjects()
   }
+
   socket.on('task:created', t => {
     if (activeProject.value && t.projectId === activeProject.value.id) tasks.value.push(t)
   })
@@ -319,179 +268,6 @@ onMounted(() => {
   background: transparent;
   pointer-events: none;
   z-index: 0;
-}
-
-.auth-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 2rem;
-  position: relative;
-  z-index: 1;
-}
-
-.auth-card {
-  background: linear-gradient(135deg, #1a1a3e 0%, #2d0a4e 50%, #1a1a3e 100%);
-  border-radius: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-  padding: 3rem;
-  width: 100%;
-  max-width: 420px;
-  border: 2px solid #06dcff;
-  backdrop-filter: blur(10px);
-}
-
-.auth-header {
-  text-align: center;
-  margin-bottom: 2rem;
-}
-
-.auth-header h1 {
-  font-size: 2.5rem;
-  margin: 0;
-  color: #06dcff;
-  font-weight: 900;
-}
-
-.auth-header p {
-  color: #06dcff;
-  margin: 0.5rem 0 0;
-  font-size: 0.95rem;
-  font-weight: 500;
-}
-
-.auth-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.form-group label {
-  color: #e2e8f0;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.form-input,
-.form-select {
-  padding: 0.75rem 1rem;
-  border: 2px solid #475569;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  background: #0f172a;
-  color: #e2e8f0;
-  transition: all 0.3s ease;
-}
-
-.form-input::placeholder {
-  color: #64748b;
-}
-
-.form-input:focus,
-.form-select:focus {
-  outline: none;
-  border-color: #06b6d4;
-  background: #1e293b;
-  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.2);
-}
-
-.register-form {
-  border-top: 2px solid #475569;
-  padding-top: 1rem;
-  margin-top: 0.5rem;
-}
-
-.error-message {
-  background: rgba(239, 68, 68, 0.15);
-  color: #fca5a5;
-  padding: 1rem;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  border: 1px solid rgba(239, 68, 68, 0.3);
-}
-
-.btn {
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 10px;
-  font-weight: 600;
-  cursor: pointer;
-  font-size: 0.95rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  transition: all 0.3s ease;
-}
-
-.btn:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.3);
-}
-
-.btn-primary {
-  background: #06dcff;
-  color: #0a0e27;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  font-weight: 700;
-}
-
-.btn-primary:hover {
-  background: #00d9f5;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-}
-
-.btn-secondary {
-  background: #b8ff00;
-  color: #0a0e27;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  font-weight: 700;
-}
-
-.btn-secondary:hover {
-  background: #a3e600;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-}
-
-.btn-success {
-  background: #ff6600;
-  color: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  font-weight: 700;
-}
-
-.btn-success:hover {
-  background: #ff5500;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
-}
-
-.btn-outline {
-  background: transparent;
-  color: #06dcff;
-  border: 2px solid #06dcff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-.btn-outline:hover {
-  background: rgba(6, 220, 255, 0.1);
-  border-color: #06dcff;
-  color: #06dcff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.btn-full {
-  width: 100%;
-}
-
-.btn-small {
-  padding: 0.5rem 1rem;
-  font-size: 0.85rem;
 }
 
 .dashboard-container {
@@ -752,6 +528,18 @@ onMounted(() => {
   opacity: 0.9;
 }
 
+.task-card.low {
+  border-left: 5px solid #4CAF50;
+}
+
+.task-card.medium {
+  border-left: 5px solid #FFC107;
+}
+
+.task-card.high {
+  border-left: 5px solid #F44336;
+}
+
 .task-card.done .task-content p {
   text-decoration: line-through;
   color: #64748b;
@@ -821,10 +609,6 @@ onMounted(() => {
   .create-project,
   .create-task {
     flex-direction: column;
-  }
-
-  .auth-card {
-    padding: 2rem;
   }
 }
 </style>
